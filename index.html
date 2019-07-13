@@ -1,0 +1,129 @@
+<html>
+<head>
+<style>
+body {
+  text-align: center;
+}
+.button {
+  margin: 3vh auto;
+  width:80vw;
+  height:15vh;
+  background-color:black;
+  color:white;
+  font-size:10vh;
+  padding:10px;
+  user-select: none;
+}
+#timer {
+  font-size: 10vh;
+}
+.hidden {
+  display:none;
+}
+</style>
+<body>
+<div id="noUrlParams">please add url param ?intervals=2,2,2,2</div>
+<div id="activePage">
+  <div id="startstop" onclick="startStop()" class="button">START</div>
+  <div onclick="restart()" class="button">RESTART</div>
+  <div id="timer"></div>
+  <div onclick="seek()" class="button">+10s</div>
+</div>
+<script>
+a=new AudioContext() // browsers limit the number of concurrent audio contexts, so you better re-use'em
+function beep(vol, freq, duration){
+  v=a.createOscillator()
+  u=a.createGain()
+  v.connect(u)
+  v.frequency.value=freq
+  v.type="square"
+  u.connect(a.destination)
+  u.gain.value=vol*0.01
+  v.start(a.currentTime)
+  v.stop(a.currentTime+duration*0.001)
+}
+
+var timer = document.getElementById("timer");
+var startStopButton = document.getElementById("startstop");
+var lastActivated = Date.now();
+var intervals = [];
+var urlParams = new URLSearchParams(window.location.search);
+if (urlParams.has('intervals')) {
+  var urlIntervals = urlParams.get("intervals").split(",");
+  intervals = [];
+  intervals.push({duration: 5, run: false});
+  urlIntervals.forEach((t)=>{
+    console.log("adding interval: "+t);
+    intervals.push({duration: t, run: true});
+	intervals.push({duration: t, run: false});
+  });
+  intervals.push({duration: 5, run: false});
+  
+  if (intervals.length > 2) {
+    var noUrlParams = document.getElementById("noUrlParams");
+	noUrlParams.classList.add("hidden");
+  } else {
+	var activePage = document.getElementById("activePage");
+	activePage.classList.add("hidden");
+  }
+} else {
+  var activePage = document.getElementById("activePage");
+  activePage.classList.add("hidden");
+}
+var t = 0; 
+var intervalsMs = intervals.map(function(interval){t+=interval.duration*1000*60; return {duration: t, run:interval.run};});
+var timeElapsed = 0;
+var nextThreshold = intervalsMs[0].duration;
+var intervalIndex = 0;
+var shouldRun = false;
+var active = false;
+var timeScale = 1;
+
+function startStop() {
+  if (!active) lastActivated = Date.now(); // start and record time
+  active = !active;
+  startStopButton.innerText = active?"STOP":"START";
+}
+
+function restart() {
+  timeElapsed = 0;
+  intervalIndex = 0;
+  nextThreshold = intervalsMs[0].duration;
+  shouldRun = false;
+}
+
+function step() {
+  if (active) {
+   var now = Date.now();
+   timeElapsed += (now - lastActivated)*timeScale;
+   lastActivated = now;
+  }
+  var s = (timeElapsed/1000/60).toFixed(3);
+  timer.innerText = ''+ s + ' / ' + (nextThreshold/1000/60) + '\n' + (shouldRun?"RUN":"WALK") + "\n(step "+intervalIndex+" / " + intervalsMs.length + ")";
+  if (timeElapsed >= nextThreshold && nextThreshold > 0) {
+	intervalIndex++;
+	if (intervalIndex >= intervalsMs.length) {
+	  nextThreshold = 0;
+	} else {
+	  nextThreshold = intervalsMs[intervalIndex].duration;
+	  shouldRun = intervalsMs[intervalIndex].run;
+	  if (shouldRun) {
+	    beep(5,880,200);
+		setTimeout(function(){beep(5,1046,200);}, 200);
+		setTimeout(function(){beep(5,1318,200);}, 400);
+	  } else {
+	    beep(5,698,600);
+	  }
+	}
+  }
+}
+
+function seek() {
+  lastActivated -= 10*1000;
+}
+
+setInterval(step, 100);
+</script>
+</body>
+</head>
+</html>
